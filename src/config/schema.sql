@@ -1,4 +1,4 @@
--- MoodReel Supabase Database Schema
+-- BidLan Supabase Database Schema
 -- Run this in your Supabase SQL Editor to set up the tables
 
 -- ─── Users Table ───────────────────────────────────────────────

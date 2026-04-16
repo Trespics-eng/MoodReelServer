@@ -1,5 +1,6 @@
 import express from 'express';
 import MovieService from '../services/movieService.js';
+import VaporpicService from '../services/vaporpicService.js';
 
 const router = express.Router();
 
@@ -72,6 +73,23 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Movie not found' });
     }
     res.json({ success: true, movie });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/movies/:id/stream
+router.get('/:id/stream', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, type = 'movie', season = '1', episode = '1' } = req.query;
+    
+    if (!title) {
+        return res.status(400).json({ success: false, message: 'Title is required for vaporpic streaming' });
+    }
+
+    const links = await VaporpicService.getStreamLinks(title, type, season, episode);
+    res.json({ success: true, links });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

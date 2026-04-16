@@ -54,7 +54,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    service: 'MoodReel API'
+    service: 'BidLan API'
   });
 });
 
@@ -81,7 +81,7 @@ app.use((req, res) => {
 
 // ─── Start Server ──────────────────────────────────────────────
 const start = async () => {
-  console.log('🎬 MoodReel API Server starting...\n');
+  console.log('🎬 BidLan API Server starting...\n');
 
   // Initialize Supabase (for DB + Storage)
   initSupabase();

@@ -79,19 +79,21 @@ async function proxyToAI(endpoint, data = {}, files = [], timeout = 120000) {
 
 router.get('/health', async (req, res) => {
   try {
-    const response = await axios.get(`${AI_SERVER_URL}/health`, { timeout: 5000 });
+    const response = await axios.get(`${AI_SERVER_URL}/health`, { timeout: 3000 });
     res.json(response.data);
   } catch (error) {
-    res.status(503).json({ status: 'unavailable', error: 'AI server is not responding' });
+    // Graceful fallback to avoid 503 red console errors
+    res.json({ status: 'unavailable', error: 'AI server is not responding', offline: true });
   }
 });
 
 router.get('/status', async (req, res) => {
   try {
-    const response = await axios.get(`${AI_SERVER_URL}/api/ai/status`, { timeout: 10000 });
+    const response = await axios.get(`${AI_SERVER_URL}/api/ai/status`, { timeout: 5000 });
     res.json(response.data);
   } catch (error) {
-    res.status(503).json({ status: 'unavailable', error: 'AI server is not responding' });
+    // Graceful fallback to avoid 503 red console errors
+    res.json({ status: 'unavailable', error: 'AI server is not responding', offline: true });
   }
 });
 

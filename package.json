@@ -1,8 +1,8 @@
 {
-  "name": "moodreel-server",
+  "name": "bidlan-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "MoodReel Video Platform API Server",
+  "description": "BidLan Video Platform API Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,7 +14,7 @@
     "streaming",
     "platform"
   ],
-  "author": "MoodReel",
+  "author": "BidLan",
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
