@@ -4,6 +4,7 @@ import OmdbService from './omdbService.js';
 import _ from 'lodash';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import UploadedVideoModel from '../models/sql/UploadedVideo.js';
 
 dotenv.config();
 
@@ -47,12 +48,43 @@ const MovieService = {
     };
   },
 
+  // Format Supabase uploaded video
+  formatUploadedVideo(video) {
+    return {
+      videoId: video.video_id,
+      title: video.title,
+      description: video.description || '',
+      thumbnail: video.video_url ? video.video_url.replace('.mp4', '.jpg') : '',
+      duration: 'Movie',
+      durationSeconds: 0,
+      platform: 'uploaded',
+      category: video.category || 'general',
+      views: video.views || 0,
+      likes: 0,
+      rating: 5,
+      releaseDate: video.created_at || '',
+      channelName: 'User Upload',
+      publishedAt: video.created_at ? new Date(video.created_at) : new Date(),
+      source: 'upload',
+      videoUrl: video.video_url
+    };
+  },
+
   // Get trending movies (Combines TMDB and OMDB)
   async getTrending({ page = 1 } = {}) {
     if (!this.isConfigured() && !OmdbService.isConfigured()) return [];
 
     let tmdbMovies = [];
     let omdbMovies = [];
+    let uploadedMovies = [];
+
+    // 0. Fetch Uploaded Videos (simulated trending for custom content)
+    try {
+      const uploads = await UploadedVideoModel.findAll({ page, limit: 10 });
+      uploadedMovies = uploads.videos.map(v => this.formatUploadedVideo(v));
+    } catch (e) {
+      console.error('❌ Uploaded trending error:', e.message);
+    }
 
     // 1. Fetch from TMDB
     if (this.isConfigured()) {
@@ -79,7 +111,8 @@ const MovieService = {
       }
     }
 
-    return _.uniqBy(this.interleave(tmdbMovies, omdbMovies), 'title');
+    const external = this.interleave(tmdbMovies, omdbMovies);
+    return _.uniqBy(this.interleave(uploadedMovies, external), 'title');
   },
 
   // Search movies across TMDB and OMDB
@@ -89,6 +122,17 @@ const MovieService = {
 
     const results = [];
     let totalResults = 0;
+
+    // 0. Search Uploaded Videos
+    try {
+      // In-memory filter on total uploads for basic search
+      const allUploads = await UploadedVideoModel.findAll({ limit: 100 });
+      const matched = allUploads.videos.filter(v => v.title && v.title.toLowerCase().includes(query.toLowerCase()));
+      results.push(...matched.map(v => this.formatUploadedVideo(v)));
+      totalResults += matched.length;
+    } catch (e) {
+      console.error('❌ Uploaded search error:', e.message);
+    }
 
     // 1. Search TMDB
     if (this.isConfigured()) {
@@ -123,9 +167,15 @@ const MovieService = {
     }
 
     // Interleave TMDB and OMDB if both produced results
+    const uploadedRes = results.filter(v => v.platform === 'uploaded');
     const tmdbResults = results.filter(v => v.platform === 'tmdb');
     const omdbResults = results.filter(v => v.platform === 'omdb');
-    const interleaved = this.interleave(tmdbResults, omdbResults);
+    
+    // First interleave TMDB and OMDB
+    let interleaved = this.interleave(tmdbResults, omdbResults);
+    
+    // Then interleave with uploaded results for highest exposure
+    interleaved = this.interleave(uploadedRes, interleaved);
 
     // Deduplicate by title (rough) or just return combined
     const unique = _.uniqBy(interleaved, 'title');
@@ -149,6 +199,18 @@ const MovieService = {
       '9648': 'Mystery', '10749': 'Romance', '878': 'Sci-Fi', '10770': 'TV Movie',
       '53': 'Thriller', '10752': 'War', '37': 'Western'
     };
+
+    // 0. Fetch Uploaded Videos by Category
+    try {
+      const genreName = genreMap[genreId.toString()];
+      if (genreName) {
+        // Find uploaded matching category name
+        const uploads = await UploadedVideoModel.findAll({ category: genreName.toLowerCase(), page });
+        results.push(...uploads.videos.map(v => this.formatUploadedVideo(v)));
+      }
+    } catch (e) {
+      console.error('❌ Uploaded genre fetch error:', e.message);
+    }
 
     // 1. Fetch from TMDB
     if (this.isConfigured()) {
@@ -183,8 +245,10 @@ const MovieService = {
       }
     }
 
+    const uploadedMovies = results.filter(v => v.platform === 'uploaded');
     const tmdbMovies = results.filter(v => v.platform === 'tmdb');
-    return _.uniqBy(this.interleave(tmdbMovies, omdbMovies), 'title');
+    const external = this.interleave(tmdbMovies, omdbMovies);
+    return _.uniqBy(this.interleave(uploadedMovies, external), 'title');
   },
 
   // Get genre list
@@ -206,6 +270,24 @@ const MovieService = {
 
   // Get movie details including cast, trailers, and similar movies
   async getDetails(movieId) {
+    // Determine provider for local upload
+    if (movieId.startsWith('upload_')) {
+      try {
+        const up = await UploadedVideoModel.findById(movieId);
+        if (up) {
+           const formatted = this.formatUploadedVideo(up);
+           formatted.recommendations = [];
+           formatted.cast = [];
+           formatted.genres = [{ id: 0, name: up.category || 'general' }];
+           formatted.status = 'Released';
+           return formatted;
+        }
+      } catch (e) {
+        console.error('❌ Upload details error:', e.message);
+      }
+      return null;
+    }
+
     // Determine provider
     if (movieId.startsWith('omdb_')) {
       return await OmdbService.getDetails(movieId);
